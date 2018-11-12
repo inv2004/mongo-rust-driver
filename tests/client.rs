@@ -70,6 +70,56 @@ fn test_new_pool_and_pop_client_in_threads() {
 }
 
 #[test]
+fn test_find_in_threads() {
+    let uri = Uri::new("mongodb://localhost:27017/").unwrap();
+    let pool = Arc::new(ClientPool::new(uri, None));
+
+    let pool0 = pool.clone();
+    let client = pool0.pop();
+    let mut coll = client.get_collection("rust_driver_test", "many_items");
+    let doc = doc!{"a":1, "b":2};
+    for _ in 0..10_000 {
+        coll.insert(&doc, None).unwrap();
+    }
+
+    let pool1 = pool.clone();
+    let guard1 = thread::spawn(move || {
+        let client = pool1.pop();
+        let coll = client.get_collection("rust_driver_test", "many_items");
+        for _ in 0..10 {
+            let cursor = coll.find(&doc! {}, None).unwrap();
+            let mut counter = 0;
+            for x in cursor {
+                let d = x.unwrap();
+                counter += d.get_i32("a").unwrap();
+            }
+            assert!(counter > 0);
+        }
+    });
+
+    let pool2 = pool.clone();
+    let guard2 = thread::spawn(move || {
+        let client = pool2.pop();
+        let coll = client.get_collection("rust_driver_test", "many_items");
+        for _ in 0..10 {
+            let cursor = coll.find(&doc! {}, None).unwrap();
+            let mut counter = 0;
+            for x in cursor {
+                let d = x.unwrap();
+                counter += d.get_i32("a").unwrap();
+            }
+            assert!(counter > 0);
+        }
+    });
+
+
+    guard1.join().unwrap();
+    guard2.join().unwrap();
+
+    coll.drop().unwrap();
+}
+
+#[test]
 fn test_get_server_status() {
     let uri = Uri::new("mongodb://localhost:27017/").unwrap();
     let pool = ClientPool::new(uri, None);
