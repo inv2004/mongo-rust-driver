@@ -129,14 +129,41 @@ fn win(_mongoc_version: &str) {
     }
 }
 
+fn win_gnu(_mongoc_version: &str) {
+    let mongo_lib = "mongoc-1.0";
+    let bson_lib = "bson-1.0";
+
+    if let Ok(bson_dir_lib) = env::var("X86_64_PC_WINDOWS_GNU_MONGOC_DIR") {
+        if let Ok(mongo_dir_lib) = env::var("X86_64_PC_WINDOWS_GNU_BSON_DIR") {
+            println!("cargo:rustc-link-search=native={}", bson_dir_lib);
+            println!("cargo:rustc-link-lib=dylib={}", bson_lib);
+            println!("cargo:rustc-link-search=native={}", mongo_dir_lib);
+            println!("cargo:rustc-link-lib=dylib={}", mongo_lib);
+
+        } else {
+            panic!("please define X86_64_PC_WINDOWS_GNU_BSON_DIR to {}.lib, \n for example set BSON_LIB=C:\\vcpkg\\packages\\libbson_x64-windows\\lib", bson_lib);
+        }
+    } else {
+        panic!("please define X86_64_PC_WINDOWS_GNU_MONGOC_DIR to {}.lib, \n for example set MONGO_LIB=C:\\vcpkg\\packages\\mongo-c-driver_x64-windows\\lib", mongo_lib);
+    }
+}
+
 fn main() {
     let mongoc_version = env!("CARGO_PKG_VERSION")
         .split('-')
         .next()
         .expect("Crate version is not valid");
 
+    let target = env::var("TARGET").unwrap();
+
     #[cfg(target_env = "msvc")]
     win(mongoc_version);
     #[cfg(not(target_env = "msvc"))]
-    lin(mongoc_version);
+    {
+        if target.contains("windows-gnu") {
+            win_gnu(mongoc_version)
+        } else {
+            lin(mongoc_version);
+        }
+    }
 }
